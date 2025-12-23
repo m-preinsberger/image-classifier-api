@@ -24,13 +24,13 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>Never</CopyToPublishDirectory>
     </None>
-	<None Include="model\mobilenetv2.onnx" CopyToOutputDirectory="Always" />
-	<None Include="model\labels.txt" CopyToOutputDirectory="Always" />
   </ItemGroup>
   <ItemGroup>
     <Using Include="System.Threading.ExecutionContext" Alias="ExecutionContext" />
   </ItemGroup>
-  <ItemGroup>
-    <Folder Include="model\" />
-  </ItemGroup>
+	<ItemGroup>
+		<None Include="model\efficientnet-lite4-11.onnx" CopyToOutputDirectory="Always" />
+		<None Include="model\labels.txt" CopyToOutputDirectory="Always" />
+	</ItemGroup>
+
 </Project>

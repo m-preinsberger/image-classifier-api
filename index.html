@@ -1,11 +1,219 @@
-﻿<!DOCTYPE html>
-
-<html lang="en" xmlns="http://www.w3.org/1999/xhtml">
+﻿<!doctype html>
+<html lang="de">
 <head>
     <meta charset="utf-8" />
-    <title></title>
-</head>
-<body>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Recycling Image Classifier</title>
 
+    <style>
+        :root {
+            --bg: #0f172a;
+            --panel: #111827;
+            --card: #020617;
+            --accent: #22c55e;
+            --accent-soft: #16a34a;
+            --text: #e5e7eb;
+            --muted: #9ca3af;
+            --danger: #ef4444;
+            --radius: 16px;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+            background: radial-gradient(1200px 600px at 50% -20%, #1e293b, var(--bg));
+            color: var(--text);
+            min-height: 100vh;
+            display: grid;
+            place-items: center;
+        }
+
+        .app {
+            width: 100%;
+            max-width: 420px;
+            padding: 20px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 16px;
+        }
+
+            .header h1 {
+                margin: 0;
+                font-size: 1.6rem;
+                font-weight: 700;
+                letter-spacing: 0.3px;
+            }
+
+            .header p {
+                margin: 6px 0 0;
+                color: var(--muted);
+                font-size: 0.9rem;
+            }
+
+        .card {
+            background: linear-gradient(180deg, #020617, var(--panel));
+            border-radius: var(--radius);
+            padding: 14px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.45), inset 0 0 0 1px rgba(255,255,255,0.05);
+        }
+
+        video {
+            width: 100%;
+            border-radius: 12px;
+            background: black;
+        }
+
+        .controls {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 12px;
+            margin-top: 12px;
+        }
+
+        button {
+            appearance: none;
+            border: none;
+            border-radius: 14px;
+            padding: 14px 16px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            color: #052e16;
+            background: linear-gradient(180deg, #4ade80, var(--accent));
+            box-shadow: 0 8px 20px rgba(34,197,94,0.35), inset 0 -2px 0 rgba(0,0,0,0.2);
+            transition: transform .08s ease, filter .08s ease;
+        }
+
+            button:active {
+                transform: translateY(1px);
+                filter: brightness(0.95);
+            }
+
+        .result {
+            margin-top: 14px;
+            background: var(--card);
+            border-radius: 14px;
+            padding: 12px;
+            font-size: 0.9rem;
+            line-height: 1.45;
+            color: var(--muted);
+            min-height: 64px;
+            white-space: pre-wrap;
+            word-break: break-word;
+            box-shadow: inset 0 0 0 1px rgba(255,255,255,0.05);
+        }
+
+        .label {
+            color: var(--accent);
+            font-weight: 700;
+            font-size: 1.1rem;
+        }
+
+        .confidence {
+            color: #a7f3d0;
+            font-weight: 600;
+        }
+
+        footer {
+            text-align: center;
+            margin-top: 14px;
+            font-size: 0.75rem;
+            color: var(--muted);
+        }
+
+        canvas {
+            display: none;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="app">
+        <div class="header">
+            <h1>Recycling Classifier</h1>
+            <p>Kamera → KI → Klassifikation</p>
+        </div>
+
+        <div class="card">
+            <video id="video" autoplay playsinline></video>
+
+            <div class="controls">
+                <button id="classifyBtn">Bild analysieren</button>
+            </div>
+
+            <div id="output" class="result">
+                Bereit. Kamera wird initialisiert…
+            </div>
+        </div>
+
+        <footer>
+            Azure Functions · MobileNetV2 · ONNX
+        </footer>
+
+        <canvas id="canvas"></canvas>
+    </div>
+
+    <script>
+    const API_URL =
+      "https://image-classification-ambrece2grgwezcx.switzerlandnorth-01.azurewebsites.net/api/ClassifyImage";
+
+    const video = document.getElementById("video");
+    const canvas = document.getElementById("canvas");
+    const output = document.getElementById("output");
+    const btn = document.getElementById("classifyBtn");
+
+    async function startCamera() {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "environment" }
+      });
+      video.srcObject = stream;
+      output.textContent = "Kamera aktiv. Bereit zur Analyse.";
+    }
+
+    btn.onclick = async () => {
+      try {
+        output.textContent = "Bild wird aufgenommen…";
+
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        canvas.getContext("2d").drawImage(video, 0, 0);
+
+        const blob = await new Promise(r =>
+          canvas.toBlob(r, "image/jpeg", 0.9)
+        );
+
+        output.textContent = "Analyse läuft…";
+
+        const res = await fetch(API_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/octet-stream" },
+          body: blob
+        });
+
+        const data = await res.json();
+
+        output.innerHTML =
+          `<div class="label">${data.label}</div>
+           <div class="confidence">
+             Confidence: ${(data.confidence * 100).toFixed(1)} %
+           </div>`;
+
+      } catch (e) {
+        output.innerHTML =
+          `<span style="color: var(--danger)">Fehler:</span> ${e}`;
+      }
+    };
+
+    startCamera().catch(e => {
+      output.innerHTML =
+        `<span style="color: var(--danger)">Kamera-Fehler:</span> ${e}`;
+    });
+    </script>
 </body>
 </html>

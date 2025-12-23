@@ -13,17 +13,12 @@ namespace image_classifier;
 
 public class ClassifyImage {
     private static readonly string ModelPath =
-        Path.Combine(AppContext.BaseDirectory, "model", "mobilenetv2.onnx");
-
+        Path.Combine(AppContext.BaseDirectory, "model", "efficientnet-lite4-11.onnx");
     private static readonly string LabelsPath =
         Path.Combine(AppContext.BaseDirectory, "model", "labels.txt");
 
     private static readonly Lazy<InferenceSession> Session = new(() => new InferenceSession(ModelPath));
     private static readonly Lazy<string[]> Labels = new(() => File.ReadAllLines(LabelsPath));
-
-    // ImageNet normalization
-    private static readonly float[] Mean = { 0.485f, 0.456f, 0.406f };
-    private static readonly float[] Std = { 0.229f, 0.224f, 0.225f };
 
     [Function("ClassifyImage")]
     public async Task<HttpResponseData> Run(
@@ -38,11 +33,12 @@ public class ClassifyImage {
         using Image<Rgb24> img = ImageSharpImage.Load<Rgb24>(bytes);
         img.Mutate(x => x.Resize(224, 224));
 
+        // EfficientNet-Lite4 ONNX expects NHWC float32: [1,224,224,3]
         var inputName = Session.Value.InputMetadata.Keys.First();
         var outputName = Session.Value.OutputMetadata.Keys.First();
 
-        var input = new DenseTensor<float>(new[] { 1, 3, 224, 224 });
-        FillNchwNormalized(img, input);
+        var input = new DenseTensor<float>(new[] { 1, 224, 224, 3 });
+        FillNhwcRgbMinus127Div128(img, input);
 
         var inputs = new List<NamedOnnxValue>
         {
@@ -50,9 +46,10 @@ public class ClassifyImage {
         };
 
         using var results = Session.Value.Run(inputs);
-        var logits = results.First(r => r.Name == outputName).AsEnumerable<float>().ToArray();
+        var logitsOrProbs = results.First(r => r.Name == outputName).AsEnumerable<float>().ToArray();
 
-        var probs = Softmax(logits);
+        // Many EfficientNet-Lite exports already output softmax; keep it safe:
+        var probs = SoftmaxIfNeeded(logitsOrProbs);
         int idx = ArgMax(probs);
 
         var ok = req.CreateResponse(HttpStatusCode.OK);
@@ -70,20 +67,16 @@ public class ClassifyImage {
         return ms.ToArray();
     }
 
-    private static void FillNchwNormalized(Image<Rgb24> img, DenseTensor<float> t) {
+    // Per EfficientNet-Lite4 README: convert jpg [0..255] -> float [-1..1] via (x-127)/128. :contentReference[oaicite:1]{index=1}
+    private static void FillNhwcRgbMinus127Div128(Image<Rgb24> img, DenseTensor<float> t) {
         img.ProcessPixelRows(accessor => {
             for (int y = 0; y < 224; y++) {
                 var row = accessor.GetRowSpan(y);
                 for (int x = 0; x < 224; x++) {
                     var p = row[x];
-
-                    float r = (p.R / 255f - Mean[0]) / Std[0];
-                    float g = (p.G / 255f - Mean[1]) / Std[1];
-                    float b = (p.B / 255f - Mean[2]) / Std[2];
-
-                    t[0, 0, y, x] = r;
-                    t[0, 1, y, x] = g;
-                    t[0, 2, y, x] = b;
+                    t[0, y, x, 0] = (p.R - 127f) / 128f;
+                    t[0, y, x, 1] = (p.G - 127f) / 128f;
+                    t[0, y, x, 2] = (p.B - 127f) / 128f;
                 }
             }
         });
@@ -92,26 +85,32 @@ public class ClassifyImage {
     private static int ArgMax(float[] v) {
         int idx = 0;
         float best = v[0];
-        for (int i = 1; i < v.Length; i++) {
+        for (int i = 1; i < v.Length; i++)
             if (v[i] > best) { best = v[i]; idx = i; }
-        }
         return idx;
     }
 
-    private static float[] Softmax(float[] logits) {
-        float max = logits.Max();
-        var exps = new float[logits.Length];
+    private static float[] SoftmaxIfNeeded(float[] v) {
+        // If it already looks like probabilities (sum ~1 and in [0,1]), return as-is
         double sum = 0;
-
-        for (int i = 0; i < logits.Length; i++) {
-            double e = Math.Exp(logits[i] - max);
-            exps[i] = (float)e;
-            sum += e;
+        bool inRange = true;
+        for (int i = 0; i < v.Length; i++) {
+            sum += v[i];
+            if (v[i] < -0.001 || v[i] > 1.001) inRange = false;
         }
+        if (inRange && Math.Abs(sum - 1.0) < 0.05) return v;
 
+        // else softmax
+        float max = v.Max();
+        var exps = new float[v.Length];
+        double s = 0;
+        for (int i = 0; i < v.Length; i++) {
+            double e = Math.Exp(v[i] - max);
+            exps[i] = (float)e;
+            s += e;
+        }
         for (int i = 0; i < exps.Length; i++)
-            exps[i] = (float)(exps[i] / sum);
-
+            exps[i] = (float)(exps[i] / s);
         return exps;
     }
 }
