@@ -11,7 +11,6 @@
             --panel: #111827;
             --card: #020617;
             --accent: #22c55e;
-            --accent-soft: #16a34a;
             --text: #e5e7eb;
             --muted: #9ca3af;
             --danger: #ef4444;
@@ -19,13 +18,13 @@
         }
 
         * {
-            box-sizing: border-box;
+            box-sizing: border-box
         }
 
         body {
             margin: 0;
-            font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-            background: radial-gradient(1200px 600px at 50% -20%, #1e293b, var(--bg));
+            font-family: system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+            background: radial-gradient(1200px 600px at 50% -20%,#1e293b,var(--bg));
             color: var(--text);
             min-height: 100vh;
             display: grid;
@@ -35,45 +34,51 @@
         .app {
             width: 100%;
             max-width: 420px;
-            padding: 20px;
+            padding: 20px
         }
 
         .header {
             text-align: center;
-            margin-bottom: 16px;
+            margin-bottom: 16px
         }
 
             .header h1 {
                 margin: 0;
                 font-size: 1.6rem;
-                font-weight: 700;
-                letter-spacing: 0.3px;
+                font-weight: 750;
+                letter-spacing: .3px
             }
 
             .header p {
                 margin: 6px 0 0;
                 color: var(--muted);
-                font-size: 0.9rem;
+                font-size: .9rem
             }
 
         .card {
-            background: linear-gradient(180deg, #020617, var(--panel));
+            background: linear-gradient(180deg,#020617,var(--panel));
             border-radius: var(--radius);
             padding: 14px;
-            box-shadow: 0 20px 40px rgba(0,0,0,0.45), inset 0 0 0 1px rgba(255,255,255,0.05);
+            box-shadow: 0 20px 40px rgba(0,0,0,.45),inset 0 0 0 1px rgba(255,255,255,.05);
+        }
+
+        .videoWrap {
+            border-radius: 12px;
+            overflow: hidden;
+            background: #000
         }
 
         video {
             width: 100%;
-            border-radius: 12px;
-            background: black;
+            display: block;
+            background: #000
         }
 
         .controls {
             display: grid;
             grid-template-columns: 1fr;
             gap: 12px;
-            margin-top: 12px;
+            margin-top: 12px
         }
 
         button {
@@ -82,17 +87,22 @@
             border-radius: 14px;
             padding: 14px 16px;
             font-size: 1rem;
-            font-weight: 600;
+            font-weight: 650;
             cursor: pointer;
             color: #052e16;
-            background: linear-gradient(180deg, #4ade80, var(--accent));
-            box-shadow: 0 8px 20px rgba(34,197,94,0.35), inset 0 -2px 0 rgba(0,0,0,0.2);
-            transition: transform .08s ease, filter .08s ease;
+            background: linear-gradient(180deg,#4ade80,var(--accent));
+            box-shadow: 0 8px 20px rgba(34,197,94,.35),inset 0 -2px 0 rgba(0,0,0,.2);
+            transition: transform .08s ease,filter .08s ease,opacity .08s ease;
         }
 
             button:active {
                 transform: translateY(1px);
-                filter: brightness(0.95);
+                filter: brightness(.95)
+            }
+
+            button:disabled {
+                opacity: .55;
+                cursor: not-allowed
             }
 
         .result {
@@ -100,35 +110,46 @@
             background: var(--card);
             border-radius: 14px;
             padding: 12px;
-            font-size: 0.9rem;
+            font-size: .9rem;
             line-height: 1.45;
             color: var(--muted);
-            min-height: 64px;
+            min-height: 78px;
             white-space: pre-wrap;
             word-break: break-word;
-            box-shadow: inset 0 0 0 1px rgba(255,255,255,0.05);
+            box-shadow: inset 0 0 0 1px rgba(255,255,255,.05);
         }
 
         .label {
             color: var(--accent);
-            font-weight: 700;
-            font-size: 1.1rem;
+            font-weight: 800;
+            font-size: 1.1rem
         }
 
         .confidence {
             color: #a7f3d0;
-            font-weight: 600;
+            font-weight: 650
+        }
+
+        .hint {
+            margin-top: 8px;
+            color: var(--muted);
+            font-size: .8rem
         }
 
         footer {
             text-align: center;
             margin-top: 14px;
-            font-size: 0.75rem;
-            color: var(--muted);
+            font-size: .75rem;
+            color: var(--muted)
         }
 
         canvas {
-            display: none;
+            display: none
+        }
+
+        a {
+            color: #93c5fd;
+            text-decoration: none
         }
     </style>
 </head>
@@ -141,79 +162,123 @@
         </div>
 
         <div class="card">
-            <video id="video" autoplay playsinline></video>
+            <div class="videoWrap">
+                <video id="video" autoplay playsinline></video>
+            </div>
 
             <div class="controls">
-                <button id="classifyBtn">Bild analysieren</button>
+                <button id="classifyBtn" disabled>Bild analysieren</button>
             </div>
 
-            <div id="output" class="result">
-                Bereit. Kamera wird initialisiert…
-            </div>
+            <div id="output" class="result">Bereit. Kamera wird initialisiert…</div>
+            <div class="hint" id="hint"></div>
         </div>
 
-        <footer>
-            Azure Functions · MobileNetV2 · ONNX
-        </footer>
-
+        <footer>Azure Functions · ONNX · Client via Azure Storage Static Website</footer>
         <canvas id="canvas"></canvas>
     </div>
 
     <script>
-    const API_URL =
-      "https://image-classification-ambrece2grgwezcx.switzerlandnorth-01.azurewebsites.net/api/ClassifyImage";
+        // IMPORTANT: keep as one line, trim, and validate as URL to avoid Safari "expected pattern" errors
+        const API_URL = "https://image-classification-ambrece2grgwezcx.switzerlandnorth-01.azurewebsites.net/api/ClassifyImage".trim();
 
-    const video = document.getElementById("video");
-    const canvas = document.getElementById("canvas");
-    const output = document.getElementById("output");
-    const btn = document.getElementById("classifyBtn");
+        const video = document.getElementById("video");
+        const canvas = document.getElementById("canvas");
+        const output = document.getElementById("output");
+        const hint = document.getElementById("hint");
+        const btn = document.getElementById("classifyBtn");
 
-    async function startCamera() {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "environment" }
-      });
-      video.srcObject = stream;
-      output.textContent = "Kamera aktiv. Bereit zur Analyse.";
-    }
+        function setError(prefix, e) {
+            output.innerHTML = `<span style="color: var(--danger)">${prefix}</span> ${String(e)}`;
+        }
 
-    btn.onclick = async () => {
-      try {
-        output.textContent = "Bild wird aufgenommen…";
+        async function startCamera() {
+            // Validate URL early (throws if malformed)
+            try { new URL(API_URL); } catch (e) {
+                setError("Ungültige API_URL:", e);
+                hint.textContent = "Prüfe die URL (Azure Portal → Function → Get Function URL).";
+                return;
+            }
 
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-        canvas.getContext("2d").drawImage(video, 0, 0);
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: "environment" }
+                });
+                video.srcObject = stream;
 
-        const blob = await new Promise(r =>
-          canvas.toBlob(r, "image/jpeg", 0.9)
-        );
+                // Wait until video has dimensions (important on iOS Safari)
+                await new Promise(resolve => {
+                    const onReady = () => {
+                        if (video.videoWidth && video.videoHeight) resolve();
+                    };
+                    video.addEventListener("loadedmetadata", onReady, { once: true });
+                    // Fallback in case loadedmetadata already fired
+                    if (video.videoWidth && video.videoHeight) resolve();
+                });
 
-        output.textContent = "Analyse läuft…";
+                btn.disabled = false;
+                output.textContent = "Kamera aktiv. Bereit zur Analyse.";
+                hint.textContent = "Hinweis: Erstes Bild braucht manchmal 1–2 Sekunden.";
+            } catch (e) {
+                setError("Kamera-Fehler:", e);
+                hint.textContent = "Erlaube Kamera-Zugriff im Browser und lade die Seite neu.";
+            }
+        }
 
-        const res = await fetch(API_URL, {
-          method: "POST",
-          headers: { "Content-Type": "application/octet-stream" },
-          body: blob
-        });
+        btn.onclick = async () => {
+            try {
+                if (!video.videoWidth || !video.videoHeight) {
+                    output.textContent = "Warte kurz: Kamera lädt noch…";
+                    return;
+                }
 
-        const data = await res.json();
+                btn.disabled = true;
+                output.textContent = "Bild wird aufgenommen…";
 
-        output.innerHTML =
-          `<div class="label">${data.label}</div>
-           <div class="confidence">
-             Confidence: ${(data.confidence * 100).toFixed(1)} %
-           </div>`;
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                canvas.getContext("2d").drawImage(video, 0, 0);
 
-      } catch (e) {
-        output.innerHTML =
-          `<span style="color: var(--danger)">Fehler:</span> ${e}`;
-      }
-    };
+                const blob = await new Promise(r => canvas.toBlob(r, "image/jpeg", 0.9));
+                if (!blob || blob.size === 0) {
+                    btn.disabled = false;
+                    setError("Fehler:", "Snapshot konnte nicht erstellt werden.");
+                    return;
+                }
 
-    startCamera().catch(e => {
-      output.innerHTML =
-        `<span style="color: var(--danger)">Kamera-Fehler:</span> ${e}`;
-    });
+                output.textContent = "Analyse läuft…";
+
+                const res = await fetch(new URL(API_URL), {
+                    method: "POST",
+                    headers: { "Content-Type": "application/octet-stream" },
+                    body: blob
+                });
+
+                // If API returns non-JSON error, show status text
+                const text = await res.text();
+                let data;
+                try { data = JSON.parse(text); }
+                catch { data = { error: text || `HTTP ${res.status}` }; }
+
+                if (!res.ok) {
+                    btn.disabled = false;
+                    output.textContent = JSON.stringify({ status: res.status, ...data }, null, 2);
+                    hint.textContent = "Wenn CORS: Function App → CORS → Origin deiner Static-Website hinzufügen.";
+                    return;
+                }
+
+                output.innerHTML =
+                    `<div class="label">${data.label ?? "unknown"}</div>
+               <div class="confidence">Confidence: ${typeof data.confidence === "number" ? (data.confidence * 100).toFixed(1) : "n/a"} %</div>`;
+
+                btn.disabled = false;
+            } catch (e) {
+                btn.disabled = false;
+                setError("Fehler:", e);
+            }
+        };
+
+        startCamera();
     </script>
 </body>
 </html>
